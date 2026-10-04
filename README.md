@@ -68,6 +68,7 @@ My_TTS_system/
 ├── schemas.py              # Pydantic models (request/response validation)
 ├── text_splitter.py        # [MỚI] Thuật toán chia nhỏ text truyện dài
 ├── audio_concat.py         # [MỚI] Nối các đoạn WAV bằng ffmpeg
+├── requirements.txt       # Danh sách thư viện cài đặt
 ├── Dockerfile              # Docker image CUDA runtime
 ├── docker-compose.yml      # Docker Compose với GPU reservation
 ├── README.md               # Tài liệu này
@@ -79,36 +80,30 @@ My_TTS_system/
 
 ---
 
-## Quản lý Python: `uv`
+## Cài đặt thư viện: `requirements.txt`
 
-Dự án sử dụng **[uv](https://docs.astral.sh/uv/)** để quản lý Python, dependencies và virtualenv. Không dùng `pip` / `venv` trực tiếp.
+Không dùng lockfile phức tạp (`uv.lock`), chỉ cần dùng file `requirements.txt` chuẩn:
 
 ```bash
-# Cài uv (nếu chưa có)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Cài đặt bằng uv pip (nhanh và đơn giản):
+uv pip install -r requirements.txt
 
-# Cài dependencies (tự tạo .venv + cài packages)
-uv sync
-
-# Chạy server trực tiếp qua uv
-uv run python app.py
-
-# Thêm dependency mới
-uv add fastapi uvicorn pydub
-
-# Chạy script test
-uv run python main.py
+# Hoặc nếu dùng pip thông thường:
+pip install -r requirements.txt
 ```
 
 ---
 
 ## Hướng dẫn nhanh
 
-### Chạy server (Native với uv — khuyên dùng khi dev)
+### Chạy server
 
 ```bash
-uv sync                    # Cài dependencies
-uv run python app.py       # Server chạy tại http://0.0.0.0:7865
+# Kích hoạt virtualenv (nếu có) rồi chạy:
+python app.py
+
+# Hoặc qua uv:
+uv run python app.py
 ```
 
 ### Chạy server (Docker — dùng cho production)

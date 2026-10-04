@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# UV Lock (không dùng lockfile)
+uv.lock
