@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  vieneu-tts-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vieneu_tts_api
+    restart: unless-stopped
+    ports:
+      - "7865:7865"
+    environment:
+      - PORT=7865
+      - HOST=0.0.0.0
+      - CUDA_VISIBLE_DEVICES=0
+      - HF_HUB_OFFLINE=0 # Đổi thành 1 khi đã tải xong model vào thư mục cache
+    volumes:
+      # Mount cache ra máy host để không bị tải lại model khi xóa container
+      - ~/.cache/huggingface:/app/cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
