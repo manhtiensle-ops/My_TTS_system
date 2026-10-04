@@ -7,9 +7,13 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
-    "vieneu[gpu]",
     "pydub>=0.25",
 ]
+
+# NOTE: vieneu[gpu] (bao gồm torch + CUDA) phải được cài thủ công trước:
+#   uv pip install vieneu[gpu]
+# Không khai báo ở đây vì gói rất nặng (~2.5GB),
+# tránh uv tự tải lại mỗi lần tạo .venv mới.
 
 [project.scripts]
 tts-server = "app:main"
