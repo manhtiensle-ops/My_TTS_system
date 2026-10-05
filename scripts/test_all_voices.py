@@ -86,7 +86,7 @@ class TTSClient:
 
 
 if __name__ == "__main__":
-    client = TTSClient("http://127.0.0.1:15186")
+    client = TTSClient("http://127.0.0.1:7865")
 
     # 1. Ping Server
     print("--- 1. Kiểm tra trạng thái máy chủ ---")

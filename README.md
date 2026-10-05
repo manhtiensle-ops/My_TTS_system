@@ -59,23 +59,49 @@ Hệ thống TTS (Text-to-Speech) tiếng Việt chất lượng cao dựa trên
 
 ---
 
-## Cấu trúc thư mục dự án
+## Cấu trúc thư mục dự án (OOP Modular Layout)
 
 ```
 My_TTS_system/
-├── app.py                  # FastAPI server — tất cả endpoints
-├── engine.py               # VieNeuEngine — nạp model, inference GPU
-├── schemas.py              # Pydantic models (request/response validation)
-├── text_splitter.py        # [MỚI] Thuật toán chia nhỏ text truyện dài
-├── audio_concat.py         # [MỚI] Nối các đoạn WAV bằng ffmpeg
-├── requirements.txt       # Danh sách thư viện cài đặt
-├── Dockerfile              # Docker image CUDA runtime
-├── docker-compose.yml      # Docker Compose với GPU reservation
-├── README.md               # Tài liệu này
-├── ARCHITECTURE.md         # Thiết kế kiến trúc chi tiết
-├── API_ENDPOINTS.md        # Đặc tả API chi tiết
-├── test_voices_output/     # Mẫu audio test các giọng đọc
-└── pyproject.toml          # Python project metadata
+├── src/                               # Toàn bộ mã nguồn cốt lõi (Module hóa)
+│   ├── api/                           # Tầng Giao tiếp HTTP (FastAPI Routers)
+│   │   ├── routes/
+│   │   │   ├── health.py              # GET /health
+│   │   │   ├── voices.py              # GET /v1/voices
+│   │   │   ├── speech.py              # POST /v1/audio/speech
+│   │   │   └── novel.py               # POST /v1/audio/novel
+│   │   ├── dependencies.py            # Singleton Engine & Service dependencies
+│   │   └── router.py                  # Tổng hợp các route
+│   ├── engines/                       # Tầng Engine trừu tượng (OOP BaseTTSEngine)
+│   │   ├── base.py                    # BaseTTSEngine (ABC interface)
+│   │   └── vieneu.py                  # VieNeuEngine (Implementation GPU inference)
+│   ├── processors/                    # Tầng xử lý chuyên biệt (OOP Processors)
+│   │   ├── text_splitter.py           # NovelTextSplitter (Chia đoạn ~100-200 từ ngắt tại \n)
+│   │   └── audio_concat.py            # AudioConcatenator (FFmpeg demuxer ghép audio)
+│   ├── services/                      # Tầng Nghiệp vụ (Business Pipeline)
+│   │   └── novel_service.py           # NovelPipelineService (Quản lý chu trình đọc truyện)
+│   ├── schemas/                       # Pydantic Schemas / DTOs
+│   │   ├── health.py                  # HealthResponse
+│   │   ├── voice.py                   # VoiceItem, VoicesResponse
+│   │   ├── speech.py                  # SpeechRequest
+│   │   └── novel.py                   # NovelRequest
+│   └── config.py                      # Cấu hình tập trung (HOST, PORT, TMP_DIR, Presets)
+├── scripts/                           # Các script kiểm thử & benchmark độc lập
+│   ├── benchmark_direct.py            # Chạy benchmark inference trực tiếp với VieNeu
+│   ├── test_client.py                 # Client test các API endpoint
+│   └── test_all_voices.py             # Client test kiểm tra 25 giọng đọc
+├── tests/                             # Unit tests tự động cho logic xử lý
+│   ├── test_text_splitter.py          # Unit test thuật toán ngắt dòng thông minh
+│   └── test_audio_concat.py           # Unit test nối audio bằng FFmpeg
+├── samples/                           # Mẫu audio đầu ra của hệ thống
+├── app.py                             # Entrypoint chính khởi chạy FastAPI Server
+├── requirements.txt                   # Danh sách thư viện cài đặt chuẩn
+├── Dockerfile                         # Docker image CUDA runtime
+├── docker-compose.yml                 # Docker Compose với GPU reservation
+├── README.md                          # Tài liệu hướng dẫn
+├── ARCHITECTURE.md                    # Thiết kế kiến trúc chi tiết
+├── API_ENDPOINTS.md                   # Đặc tả API chi tiết
+└── pyproject.toml                     # Metadata dự án
 ```
 
 ---

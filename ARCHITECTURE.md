@@ -23,33 +23,41 @@
 
 ---
 
-## 2. Module chi tiết
+## 2. Module chi tiết (OOP Architecture)
 
-### 2.1 `engine.py` — VieNeuEngine (Đã hoàn thiện)
+### 2.1 Cấu trúc OOP 4 Tầng (Clean Architecture)
 
-Engine hiện tại đã hoạt động tốt. Không sửa đổi logic inference, chỉ tận dụng.
-
-```python
-class VieNeuEngine:
-    """Bọc VieNeu-TTS v3 Turbo, quản lý vòng đời model trên GPU."""
-
-    def load_model()
-        # Nạp VieNeu v3 Turbo lên GPU VRAM
-        # Gọi 1 lần duy nhất khi server startup (FastAPI lifespan)
-        # Tốn ~2-3GB VRAM, ~5-10s thời gian khởi động
-
-    def synthesize(text: str, voice: str, speed: float) -> numpy.ndarray
-        # Input:  text ngắn (100-500 từ), voice ID, speed
-        # Output: numpy array PCM 48kHz
-        # Thread-safe: dùng threading.Lock bảo vệ CUDA Graph
-        # Thời gian: ~1-5 giây tùy độ dài text
-
-    def save(audio_array, filepath)
-        # Lưu numpy array → WAV file (48kHz, mono)
-
-    def unload_model()
-        # Giải phóng VRAM: del model, torch.cuda.empty_cache()
 ```
+┌────────────────────────────────────────────────────────┐
+│               TẦNG 1: HTTP TRANSPORT (API)              │
+│   FastAPI Routers: /health, /voices, /speech, /novel  │
+│   Request/Response Schemas: Pydantic Validation        │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│              TẦNG 2: BUSINESS SERVICES                 │
+│   NovelPipelineService: Điều phối chia text, gọi       │
+│   engine tuần tự, nối audio và dọn dẹp file tạm        │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│               TẦNG 3: DOMAIN PROCESSORS                │
+│   - NovelTextSplitter: Ngắt đoạn theo threshold & '\n' │
+│   - AudioConcatenator: Bọc FFmpeg demuxer ghép audio   │
+└───────────────────────────┬────────────────────────────┘
+                            │
+┌───────────────────────────▼────────────────────────────┐
+│              TẦNG 4: CORE TTS ENGINES                  │
+│   - BaseTTSEngine (Abstract Base Class Interface)      │
+│   - VieNeuEngine (Thực thi model GPU VRAM)             │
+│   - [Tương lai]: F5TTSEngine, KokoroEngine, etc.       │
+└────────────────────────────────────────────────────────┘
+```
+
+### 2.2 `src/engines/` — Tầng Core Engine (Kế thừa BaseTTSEngine)
+
+- `BaseTTSEngine` (ABC): Định nghĩa interface chuẩn (`load_model`, `unload_model`, `synthesize`, `resolve_voice`, `get_status`, `list_voices`).
+- `VieNeuEngine`: Cài đặt cụ thể cho mô hình VieNeu-TTS v3 Turbo, bảo vệ CUDA Graph bằng `threading.Lock`. Tương lai có thể dễ dàng cắm thêm các engine khác (Kokoro, F5-TTS, Edge-TTS) mà không làm đổi cấu trúc API.
 
 **Nguyên tắc quan trọng:**
 - `synthesize()` chỉ nên nhận đoạn text **ngắn** (~100-500 từ) để đảm bảo ổn định VRAM

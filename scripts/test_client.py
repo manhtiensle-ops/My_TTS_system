@@ -5,7 +5,7 @@ import requests
 class TTSClient:
     """Client tương tác với máy chủ TTS chuẩn OpenAI."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:15186"):
+    def __init__(self, base_url: str = "http://127.0.0.1:7865"):
         self.base_url = base_url.rstrip("/")
 
     def check_health(self) -> Dict[str, Any]:
@@ -55,7 +55,7 @@ class TTSClient:
         print(f"Thành công! File lưu tại: {output_file} (Thời gian xử lý: {latency:.2f}s, Kích thước: {len(response.content)} bytes)")
 
 if __name__ == "__main__":
-    client = TTSClient("http://127.0.0.1:15186")
+    client = TTSClient("http://127.0.0.1:7865")
     
     print("--- 1. Kiểm tra trạng thái GPU ---")
     try:
