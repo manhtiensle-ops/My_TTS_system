@@ -6,6 +6,26 @@ Hệ thống TTS (Text-to-Speech) tiếng Việt chất lượng cao dựa trên
 |---|---|---|---|
 | 🎬 **Video Shorts** | Voiceover cho TikTok / YouTube Shorts / Reels (9:16) | Trúc Ly | 1.1 |
 | 📖 **Truyện Audio** | Đọc tiểu thuyết mạng, chia chapter thành audio dài | Ngọc Huyền | 1.2 |
+| 🎬 **Truyện Video MP4** | Chuyển đổi folder truyện + ảnh bìa thành video MP4 YouTube | Ngọc Huyền | 1.2 |
+
+---
+
+## Cài đặt & Sử dụng Client SDK / CLI (Mới)
+
+Sử dụng `vieneu-sdk` ở phía Client để tự động scan folder truyện, chọn số lượng chapter và render video MP4:
+
+```bash
+# Cài đặt SDK ở chế độ editable
+pip install -e ./sdk
+
+# Chạy lệnh CLI chuyển đổi folder truyện thành MP4:
+vieneu --folder ./data/truyen_tien_hiep/chapters \
+       --cover ./data/truyen_tien_hiep/cover.jpg \
+       --output ./output_mp4 \
+       --voice "Ngọc Huyền" \
+       --speed 1.2 \
+       --start 1 --end 50
+```
 
 ---
 

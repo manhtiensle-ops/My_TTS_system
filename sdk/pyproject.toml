@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vieneu-sdk"
+version = "0.1.0"
+description = "Python Client SDK & CLI cho VieNeu TTS Video Novel Pipeline"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "tqdm>=4.66.0",
+]
+
+[project.scripts]
+vieneu = "vieneu_sdk.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]

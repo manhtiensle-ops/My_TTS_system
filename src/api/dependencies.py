@@ -2,10 +2,12 @@ from typing import Optional
 from src.engines.base import BaseTTSEngine
 from src.engines.vieneu import VieNeuEngine
 from src.services.novel_service import NovelPipelineService
+from src.services.novel_video_service import NovelVideoService
 
 # Singleton instances
 _engine_instance: Optional[BaseTTSEngine] = None
 _novel_service_instance: Optional[NovelPipelineService] = None
+_novel_video_service_instance: Optional[NovelVideoService] = None
 
 
 def get_engine() -> BaseTTSEngine:
@@ -23,3 +25,12 @@ def get_novel_service() -> NovelPipelineService:
         engine = get_engine()
         _novel_service_instance = NovelPipelineService(engine=engine)
     return _novel_service_instance
+
+
+def get_novel_video_service() -> NovelVideoService:
+    """Dependency cung cấp Singleton Novel Video Service."""
+    global _novel_video_service_instance
+    if _novel_video_service_instance is None:
+        novel_svc = get_novel_service()
+        _novel_video_service_instance = NovelVideoService(novel_service=novel_svc)
+    return _novel_video_service_instance
