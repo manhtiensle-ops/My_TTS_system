@@ -307,4 +307,42 @@ Hệ thống định nghĩa sẵn 2 bộ preset mặc định:
 - **1 request tại 1 thời điểm:** GPU chỉ xử lý 1 inference tại 1 thời điểm (threading.Lock). Các request khác xếp hàng chờ.
 - **VRAM:** Model chiếm ~2-3GB. Phần còn lại dùng cho inference. RTX 4060 (8GB) hoặc 4070 (12GB) đều đủ.
 - **Dung lượng audio:** WAV 48kHz mono ≈ 5.5 MB/phút. Chapter 10 phút ≈ 55MB WAV (nên dùng MP3 cho truyện dài).
+
+---
+
+## 8. Kiến trúc Client SDK & Video Renderer (`feature/novel-client-sdk-video`)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CLIENT LAYER (sdk/vieneu_sdk)            │
+│  ┌────────────────────┐   ┌──────────────────────────────┐  │
+│  │  NaturalSorter     │   │  NovelBatchProcessor         │  │
+│  │  (chap_1->chap_10) │   │  - range & limit filter      │  │
+│  └─────────┬──────────┘   │  - checkpoint & resume state │  │
+│            │              └──────────────┬───────────────┘  │
+│            └──────────────┬──────────────┘                  │
+│                           ▼                                 │
+│                    VieneuClient (HTTP)                      │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ POST /v1/video/novel (Multipart)
+┌───────────────────────────▼─────────────────────────────────┐
+│                    BACKEND GPU SERVER LAYER                 │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  NovelVideoService                                    │  │
+│  │  1. NovelPipelineService -> Sinh MP3 giọng Ngọc Huyền │  │
+│  │  2. StillImageVideoRenderer -> FFmpeg still-image MP4 │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
 - **Thời gian xử lý:** RTF ~0.15-0.25 (nhanh hơn real-time 4-6x). Chapter 10 phút audio ≈ 2-3 phút xử lý GPU.
+
+---
+
+## 9. Kiến trúc YouTube Data API v3 Auto-Uploader (`vieneu_sdk/youtube/`)
+
+### Cấu trúc Module Client:
+- `YouTubeConfig`: Đọc `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN` từ `.env`.
+- `YouTubeAuthManager`: Xác thực OAuth2, tự động refresh token, lưu cache tại `~/.vieneu/youtube_token.json`.
+- `QuotaTracker`: Ghi nhận hạn ngạch 10,000 units/ngày, cảnh báo dừng an toàn khi hết quota.
+- `NovelMetadataBuilder`: Chuẩn hóa Tiêu đề (<=100 ký tự), Mô tả SEO, Tags, Playlist, Thumbnail.
+- `YouTubeUploader`: Resumable Upload 8MB chunks kèm Exponential Backoff khi gián đoạn mạng.

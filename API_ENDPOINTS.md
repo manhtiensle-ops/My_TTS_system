@@ -326,3 +326,27 @@ Client ──POST──► FastAPI nhận request
 | `400` | Bad Request — thiếu input, voice không hợp lệ, speed ngoài range |
 | `500` | Internal Server Error — GPU inference thất bại, ffmpeg lỗi |
 | `503` | Service Unavailable — model chưa nạp xong (gọi `/health` trả `model_loaded: false`) |
+
+---
+
+## 8. `POST /v1/video/novel` — Render Video MP4 Ảnh Tĩnh Cho Chapter Truyện
+
+Tự động chuyển đổi text chapter truyện và file ảnh bìa tĩnh thành video MP4 chuẩn YouTube.
+
+### Request Format
+`multipart/form-data`
+
+### Form Fields
+| Field | Type | Required | Default | Mô tả |
+|---|---|---|---|---|
+| `text` | string | **Có** | — | Nội dung văn bản chapter truyện |
+| `cover_image` | file | **Có** | — | File ảnh bìa tĩnh (JPG/PNG) |
+| `chapter_name` | string | Không | `""` | Tên chapter (ví dụ `"Chương 1"`) |
+| `voice` | string | Không | `"Ngọc Huyền"` | Giọng đọc (xem GET /v1/voices) |
+| `speed` | float | Không | `1.2` | Tốc độ giọng đọc (0.5 - 2.0) |
+| `resolution` | string | Không | `"1920x1080"` | Kích thước video (`"1920x1080"`, `"1280x720"`) |
+
+### Response (HTTP 200)
+- **Content-Type**: `video/mp4`
+- **Headers**: `Content-Disposition: attachment; filename="{safe_chapter_name}.mp4"`
+- **Body**: Binary Video Stream (MP4)
