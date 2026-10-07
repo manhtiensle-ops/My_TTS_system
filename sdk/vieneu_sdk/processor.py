@@ -61,8 +61,13 @@ class NovelBatchProcessor:
         end_chapter: Optional[int] = None,
         limit: Optional[int] = None,
         resume: bool = True,
+        auto_upload_youtube: bool = False,
+        youtube_privacy: str = "unlisted",
+        youtube_playlist_id: Optional[str] = None,
+        novel_title: str = "Tiểu Thuyết",
+        youtube_uploader: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Chạy pipeline render video hàng loạt cho danh sách chapter."""
+        """Chạy pipeline render video hàng loạt cho danh sách chapter (kèm YouTube uploader tùy chọn)."""
         chapters = self.scan_and_filter(
             folder_path=folder_path,
             pattern=pattern,
@@ -79,15 +84,22 @@ class NovelBatchProcessor:
         checkpoint_file = output_dir / ".batch_checkpoint.json"
 
         completed_set = set()
+        checkpoint_data: Dict[str, Any] = {}
         if resume and checkpoint_file.exists():
             try:
-                completed_set = set(json.loads(checkpoint_file.read_text("utf-8")))
+                raw_data = json.loads(checkpoint_file.read_text("utf-8"))
+                if isinstance(raw_data, list):
+                    completed_set = set(raw_data)
+                elif isinstance(raw_data, dict):
+                    checkpoint_data = raw_data
+                    completed_set = set(raw_data.keys())
             except Exception:
                 completed_set = set()
 
         processed_count = 0
         skipped_count = 0
         failed_count = 0
+        uploaded_count = 0
 
         pbar = tqdm(chapters, desc="🎬 Render Novel Videos", unit="chap")
 
@@ -112,9 +124,38 @@ class NovelBatchProcessor:
                     speed=speed,
                 )
 
+                yt_result_info = {}
+                if auto_upload_youtube and youtube_uploader:
+                    chap_num = self.sorter.extract_chapter_number(chap_file.name)
+                    from vieneu_sdk.youtube.metadata import NovelMetadataBuilder
+
+                    meta_builder = NovelMetadataBuilder(novel_title=novel_title)
+                    metadata = meta_builder.build_for_chapter(
+                        chapter_name=chap_name,
+                        chapter_number=chap_num,
+                        privacy=youtube_privacy,
+                        playlist_id=youtube_playlist_id,
+                    )
+                    res = youtube_uploader.upload_video(
+                        video_path=out_mp4,
+                        metadata=metadata,
+                        thumbnail_path=cover_path,
+                    )
+                    if res.status == "uploaded":
+                        uploaded_count += 1
+                        yt_result_info = {
+                            "youtube_id": res.video_id,
+                            "youtube_url": res.video_url,
+                        }
+
                 completed_set.add(chap_name)
+                checkpoint_data[chap_name] = {
+                    "rendered_mp4": str(out_mp4),
+                    "status": "completed",
+                    **yt_result_info,
+                }
                 checkpoint_file.write_text(
-                    json.dumps(list(completed_set), ensure_ascii=False, indent=2),
+                    json.dumps(checkpoint_data, ensure_ascii=False, indent=2),
                     encoding="utf-8",
                 )
                 processed_count += 1
@@ -127,6 +168,7 @@ class NovelBatchProcessor:
             "processed": processed_count,
             "skipped": skipped_count,
             "failed": failed_count,
+            "uploaded": uploaded_count,
             "output_dir": str(output_dir),
         }
         return summary

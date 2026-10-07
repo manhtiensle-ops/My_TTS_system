@@ -335,3 +335,14 @@ Hệ thống định nghĩa sẵn 2 bộ preset mặc định:
 └─────────────────────────────────────────────────────────────┘
 ```
 - **Thời gian xử lý:** RTF ~0.15-0.25 (nhanh hơn real-time 4-6x). Chapter 10 phút audio ≈ 2-3 phút xử lý GPU.
+
+---
+
+## 9. Kiến trúc YouTube Data API v3 Auto-Uploader (`vieneu_sdk/youtube/`)
+
+### Cấu trúc Module Client:
+- `YouTubeConfig`: Đọc `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN` từ `.env`.
+- `YouTubeAuthManager`: Xác thực OAuth2, tự động refresh token, lưu cache tại `~/.vieneu/youtube_token.json`.
+- `QuotaTracker`: Ghi nhận hạn ngạch 10,000 units/ngày, cảnh báo dừng an toàn khi hết quota.
+- `NovelMetadataBuilder`: Chuẩn hóa Tiêu đề (<=100 ký tự), Mô tả SEO, Tags, Playlist, Thumbnail.
+- `YouTubeUploader`: Resumable Upload 8MB chunks kèm Exponential Backoff khi gián đoạn mạng.

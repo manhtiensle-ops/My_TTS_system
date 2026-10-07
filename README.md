@@ -25,6 +25,14 @@ vieneu --folder ./data/truyen_tien_hiep/chapters \
        --voice "Ngọc Huyền" \
        --speed 1.2 \
        --start 1 --end 50
+
+# Hoặc vừa render vừa tự động đăng lên YouTube:
+vieneu --folder ./data/truyen_tien_hiep/chapters \
+       --cover ./data/truyen_tien_hiep/cover.jpg \
+       --output ./output_mp4 \
+       --upload-youtube \
+       --privacy unlisted \
+       --playlist "PLxxxxxx"
 ```
 
 ---

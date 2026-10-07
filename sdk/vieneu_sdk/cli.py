@@ -73,6 +73,35 @@ def main():
         help="Không dùng checkpoint, ép buộc render lại toàn bộ",
     )
 
+    # --- CÁC TÙY CHỌN YOUTUBE UPLOAD MỚI ---
+    parser.add_argument(
+        "--upload-youtube",
+        action="store_true",
+        help="Tự động upload video MP4 lên YouTube API v3 sau khi render xong",
+    )
+    parser.add_argument(
+        "--novel-title",
+        default="Tiểu Thuyết",
+        help="Tên bộ truyện dùng để đặt tiêu đề YouTube chuẩn SEO",
+    )
+    parser.add_argument(
+        "--privacy",
+        default="unlisted",
+        choices=["private", "unlisted", "public"],
+        help="Quyền riêng tư YouTube: private | unlisted | public (Mặc định: unlisted)",
+    )
+    parser.add_argument(
+        "--playlist",
+        default=None,
+        help="ID Playlist YouTube tự động thêm video vào",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=None,
+        help="Đường dẫn file .env chứa YOUTUBE_CLIENT_ID và YOUTUBE_CLIENT_SECRET",
+    )
+
     args = parser.parse_args()
 
     print(f"🚀 Khởi chạy VieNeu Novel-to-Video Pipeline...")
@@ -80,7 +109,10 @@ def main():
     print(f"  • Thư mục input: {args.folder}")
     print(f"  • Ảnh bìa: {args.cover}")
     print(f"  • Output: {args.output}")
-    print(f"  • Giọng đọc: {args.voice} (Tốc độ {args.speed}x)\n")
+    print(f"  • Giọng đọc: {args.voice} (Tốc độ {args.speed}x)")
+    if getattr(args, "upload_youtube", False):
+        print(f"  • Tự động đăng YouTube: BẬT (Quyền: {args.privacy})")
+    print()
 
     client = VieneuClient(base_url=args.server)
     try:
@@ -88,6 +120,20 @@ def main():
         print(f"✅ Kết nối GPU Server thành công! Status: {health.get('status')}")
     except Exception as e:
         print(f"⚠️ Không thể kết nối tới GPU Server: {e}")
+
+    youtube_uploader = None
+    if args.upload_youtube:
+        try:
+            from vieneu_sdk.youtube.config import YouTubeConfig
+            from vieneu_sdk.youtube.auth import YouTubeAuthManager
+            from vieneu_sdk.youtube.uploader import YouTubeUploader
+
+            yt_config = YouTubeConfig.from_env(env_path=args.env_file)
+            yt_auth = YouTubeAuthManager(yt_config)
+            youtube_uploader = YouTubeUploader(auth_manager=yt_auth)
+            print("✅ Đã khởi tạo YouTube Uploader sẵn sàng!")
+        except Exception as e:
+            print(f"⚠️ Lỗi khởi tạo YouTube Uploader: {e}. Tiến hành render offline...")
 
     processor = NovelBatchProcessor(client=client)
     summary = processor.process(
@@ -100,12 +146,18 @@ def main():
         end_chapter=args.end,
         limit=args.limit,
         resume=not args.no_resume,
+        auto_upload_youtube=args.upload_youtube,
+        youtube_privacy=args.privacy,
+        youtube_playlist_id=args.playlist,
+        novel_title=args.novel_title,
+        youtube_uploader=youtube_uploader,
     )
 
     print("\n🎉 HOÀN THÀNH PIPELINE!")
     print(f"  • Tổng số chapter: {summary['total_chapters']}")
     print(f"  • Đã render mới:   {summary['processed']}")
     print(f"  • Đã bỏ qua (xong):{summary['skipped']}")
+    print(f"  • Đã đăng YouTube: {summary.get('uploaded', 0)}")
     print(f"  • Thất bại:       {summary['failed']}")
     print(f"  • Thư mục MP4:    {summary['output_dir']}")
 
