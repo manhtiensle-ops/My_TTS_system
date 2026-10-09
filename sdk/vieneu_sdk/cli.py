@@ -12,25 +12,25 @@ from vieneu_sdk.processor import NovelBatchProcessor
 
 def main():
     parser = argparse.ArgumentParser(
-        description="VieNeu Novel-to-Video CLI — Chuyển đổi folder truyện thành MP4 YouTube",
+        description="VieNeu Novel-to-Video CLI — Chuyển đổi folder truyện thành MP4 YouTube & Lifecycle Control",
     )
 
     parser.add_argument(
         "--folder", "-i",
-        required=True,
         type=Path,
+        default=None,
         help="Thư mục chứa các file text chapter (.txt)",
     )
     parser.add_argument(
         "--cover", "-c",
-        required=True,
         type=Path,
+        default=None,
         help="Đường dẫn file ảnh bìa tĩnh (JPG/PNG)",
     )
     parser.add_argument(
         "--output", "-o",
-        required=True,
         type=Path,
+        default=None,
         help="Thư mục xuất file video MP4 kết quả",
     )
     parser.add_argument(
@@ -73,7 +73,24 @@ def main():
         help="Không dùng checkpoint, ép buộc render lại toàn bộ",
     )
 
-    # --- CÁC TÙY CHỌN YOUTUBE UPLOAD MỚI ---
+    # --- LỰA CHỌN LIFECYCLE CONTROLLER ---
+    parser.add_argument(
+        "--gpu-status",
+        action="store_true",
+        help="Truy vấn trạng thái GPU, VRAM và Idle Watchdog từ xa",
+    )
+    parser.add_argument(
+        "--load-gpu",
+        action="store_true",
+        help="Yêu cầu Server nạp model VieNeu lên VRAM GPU ngay lập tức",
+    )
+    parser.add_argument(
+        "--unload-gpu",
+        action="store_true",
+        help="Yêu cầu Server rút model khỏi VRAM GPU, giải phóng bộ nhớ về 0 MB",
+    )
+
+    # --- CÁC TÙY CHỌN YOUTUBE UPLOAD ---
     parser.add_argument(
         "--upload-youtube",
         action="store_true",
@@ -103,6 +120,41 @@ def main():
     )
 
     args = parser.parse_args()
+    client = VieneuClient(base_url=args.server)
+
+    # Lệnh điều khiển GPU thuần túy
+    if args.gpu_status:
+        try:
+            st = client.get_gpu_status()
+            print("📊 GPU SERVER LIFECYCLE STATUS:")
+            print(f"  • Trạng thái (FSM): {st.get('state')}")
+            print(f"  • VRAM Allocated:  {st.get('vram_allocated_mb', 0):.1f} MB")
+            print(f"  • Worker PID:      {st.get('worker_pid')}")
+            print(f"  • Watchdog Idle:   {st.get('idle_seconds_remaining', 0):.1f}s remaining")
+        except Exception as e:
+            print(f"❌ Lỗi truy vấn trạng thái GPU: {e}")
+        return
+
+    if args.load_gpu:
+        try:
+            res = client.load_gpu(voice_preload=[args.voice])
+            print("⚡ ĐÃ NẠP MODEL LÊN GPU VRAM:")
+            print(f"  • Result: {res}")
+        except Exception as e:
+            print(f"❌ Lỗi khi yêu cầu nạp GPU: {e}")
+        return
+
+    if args.unload_gpu:
+        try:
+            res = client.unload_gpu()
+            print("❄️ ĐÃ THU HỒI VRAM GPU VỀ 0 MB:")
+            print(f"  • Result: {res}")
+        except Exception as e:
+            print(f"❌ Lỗi khi yêu cầu xả GPU: {e}")
+        return
+
+    if not args.folder or not args.cover or not args.output:
+        parser.error("Cần truyền đủ --folder, --cover, --output khi thực hiện render batch!")
 
     print(f"🚀 Khởi chạy VieNeu Novel-to-Video Pipeline...")
     print(f"  • GPU Server: {args.server}")
@@ -114,7 +166,6 @@ def main():
         print(f"  • Tự động đăng YouTube: BẬT (Quyền: {args.privacy})")
     print()
 
-    client = VieneuClient(base_url=args.server)
     try:
         health = client.check_health()
         print(f"✅ Kết nối GPU Server thành công! Status: {health.get('status')}")

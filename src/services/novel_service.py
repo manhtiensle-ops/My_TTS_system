@@ -3,10 +3,11 @@ import os
 import shutil
 import uuid
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional
 
 from src.config import settings
 from src.engines.base import BaseTTSEngine
+from src.lifecycle.supervisor import get_supervisor
 from src.processors.audio_concat import AudioConcatenator
 from src.processors.text_splitter import NovelTextSplitter
 
@@ -25,15 +26,33 @@ class NovelPipelineService:
 
     def __init__(
         self,
-        engine: BaseTTSEngine,
-        splitter: NovelTextSplitter = None,
-        concatenator: AudioConcatenator = None,
-        tmp_base: str = None,
+        engine: Optional[BaseTTSEngine] = None,
+        splitter: Optional[NovelTextSplitter] = None,
+        concatenator: Optional[AudioConcatenator] = None,
+        tmp_base: Optional[str] = None,
     ):
         self.engine = engine
+        self.supervisor = get_supervisor()
         self.splitter = splitter or NovelTextSplitter()
         self.concatenator = concatenator or AudioConcatenator()
         self.tmp_base = tmp_base or settings.TMP_DIR
+
+    async def _synthesize_chunk(self, chunk: str, voice_name: str, speed: float) -> bytes:
+        if self.engine is not None and getattr(self.engine, "is_loaded", False):
+            return await asyncio.to_thread(
+                self.engine.synthesize,
+                text=chunk,
+                voice_name=voice_name,
+                speed=speed,
+                response_format="wav",
+            )
+        else:
+            return await self.supervisor.synthesize(
+                text=chunk,
+                voice=voice_name,
+                speed=speed,
+                response_format="wav",
+            )
 
     async def process_novel(
         self,
@@ -45,7 +64,6 @@ class NovelPipelineService:
         target_words: int = 100,
     ) -> NovelResult:
         """Thực thi pipeline hoàn chỉnh cho 1 chapter truyện."""
-        # 1. Phân tách văn bản thành các đoạn nhỏ
         chunks = self.splitter.split(text, target_words=target_words)
         if not chunks:
             raise ValueError("Nội dung chapter rỗng hoặc không chứa văn bản hợp lệ.")
@@ -57,17 +75,10 @@ class NovelPipelineService:
         wav_parts = []
 
         try:
-            # 2. Tuần tự thực thi inference cho từng đoạn nhỏ
             for i, chunk in enumerate(chunks):
                 part_path = os.path.join(work_dir, f"part_{i:04d}.wav")
                 try:
-                    audio_bytes = await asyncio.to_thread(
-                        self.engine.synthesize,
-                        text=chunk,
-                        voice_name=voice_name,
-                        speed=speed,
-                        response_format="wav",
-                    )
+                    audio_bytes = await self._synthesize_chunk(chunk, voice_name, speed)
                 except Exception as e:
                     raise RuntimeError(f"Lỗi inference tại đoạn {i + 1}/{total_chunks}: {str(e)}") from e
 
@@ -75,12 +86,10 @@ class NovelPipelineService:
                     f.write(audio_bytes)
                 wav_parts.append(part_path)
 
-            # 3. Ghép nối danh sách WAV thành file thành phẩm
             ext = response_format.lower()
             output_path = os.path.join(work_dir, f"final.{ext}")
             await asyncio.to_thread(self.concatenator.concat, wav_parts, output_path)
 
-            # 4. Đọc dữ liệu thành phẩm
             with open(output_path, "rb") as f:
                 final_bytes = f.read()
 
@@ -96,5 +105,4 @@ class NovelPipelineService:
             )
 
         finally:
-            # 5. Dọn dẹp tuyệt đối mọi file trung gian để bảo vệ dung lượng ổ đĩa
             shutil.rmtree(work_dir, ignore_errors=True)

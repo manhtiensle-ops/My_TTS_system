@@ -61,6 +61,11 @@ vieneu --folder ./data/truyen_tien_hiep/chapters \
 
 # Mẹo: Chạy trực tiếp bằng `uv run` mà không cần activate .venv:
 uv run vieneu --folder ./data/truyen_tien_hiep/chapters --cover ./data/truyen_tien_hiep/cover.jpg --output ./output_mp4
+
+# Điều khiển VRAM GPU từ xa qua CLI (Dynamic Lifecycle Control):
+vieneu --gpu-status   # Kiểm tra trạng thái GPU (FSM state, VRAM allocated, Watchdog timeout)
+vieneu --load-gpu     # Yêu cầu Server nạp model VieNeu lên VRAM GPU
+vieneu --unload-gpu   # Yêu cầu Server giải phóng 100% VRAM GPU về 0 MB
 ```
 
 ---

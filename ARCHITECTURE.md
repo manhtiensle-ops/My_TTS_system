@@ -346,3 +346,38 @@ Hệ thống định nghĩa sẵn 2 bộ preset mặc định:
 - `QuotaTracker`: Ghi nhận hạn ngạch 10,000 units/ngày, cảnh báo dừng an toàn khi hết quota.
 - `NovelMetadataBuilder`: Chuẩn hóa Tiêu đề (<=100 ký tự), Mô tả SEO, Tags, Playlist, Thumbnail.
 - `YouTubeUploader`: Resumable Upload 8MB chunks kèm Exponential Backoff khi gián đoạn mạng.
+
+---
+
+## 10. Dynamic VRAM On-Demand Lifecycle Controller Architecture (`src/lifecycle/`)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ DAEMON PROCESS (PID: A) - Siêu nhẹ (~25MB RAM, 0 MB VRAM)              │
+│  • FastAPI / Uvicorn Control Daemon (Zero-VRAM State: SLEEP)           │
+│  • Quản lý Finite State Machine (FSM) và Idle Watchdog Timer           │
+│  • Lắng nghe HTTP Requests tại Port 7865                               │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+               [Hermes Animator calls POST /v1/lifecycle/load]
+                                    │
+                                    ▼ Spawn Process via subprocess.Popen
+┌────────────────────────────────────────────────────────────────────────┐
+│ INFERENCE WORKER PROCESS (PID: B) - Cấp phát GPU khi cần                │
+│  • Nạp PyTorch, CUDA context, nạp weights VieNeu-TTS vào VRAM          │
+│  • Giao tiếp IPC qua Unix Domain Socket (/tmp/vieneu_worker.sock)      │
+│                                                                        │
+│   [Hermes Animator calls POST /v1/lifecycle/unload HOẶC Watchdog Timeout]
+│                                   │                                    │
+│   • Daemon gửi SIGTERM/SIGKILL đến PID B                               │
+│   • Kernel + NVIDIA Driver thu hồi 100% VRAM về 0 MB tức thì!           │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Các thành phần chính:
+- `LifecycleStateMachine` (`src/lifecycle/states.py`): Quản lý các trạng thái `SLEEP`, `STARTING`, `READY`, `PROCESSING`, `STOPPING`, `ERROR`.
+- `IdleWatchdog` (`src/lifecycle/watchdog.py`): Tự động thu hồi VRAM sau $N$ giây idle nếu Animator mất kết nối.
+- `WorkerSupervisor` (`src/lifecycle/supervisor.py`): Điều phối tiến trình con Worker và Socket IPC framing.
+- `IsolatedWorkerServer` (`src/lifecycle/worker_process.py`): Tiến trình con isolated thực thi inference PyTorch.
+- `GPUSession` (`sdk/vieneu_sdk/lifecycle_session.py`): Context manager phía Client cho Animator (`with client.gpu_session():`).
+
