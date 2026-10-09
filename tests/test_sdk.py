@@ -15,6 +15,12 @@ class DummyClient(VieneuClient):
     def check_health(self):
         return {"status": "ok"}
 
+    def load_gpu(self, model_name="v3turbo", voice_preload=None, idle_timeout_seconds=600):
+        return {"status": "ok"}
+
+    def unload_gpu(self, force=False):
+        return {"status": "unloaded"}
+
     def render_chapter_video(
         self,
         chapter_text: str,

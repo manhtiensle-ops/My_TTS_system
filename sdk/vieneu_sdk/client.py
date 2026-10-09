@@ -1,12 +1,14 @@
 """
-client.py — HTTP Client layer giao tiếp với VieNeu GPU Server.
+client.py — HTTP Client layer giao tiếp với VieNeu GPU Server & Lifecycle Controller.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
+
+from vieneu_sdk.lifecycle_session import GPUSession
 
 
 class VieneuClient:
@@ -29,6 +31,66 @@ class VieneuClient:
         resp.raise_for_status()
         return resp.json()
 
+    # --- LIFECYCLE CONTROLLER METHODS ---
+
+    def load_gpu(
+        self,
+        model_name: str = "v3turbo",
+        voice_preload: Optional[List[str]] = None,
+        idle_timeout_seconds: int = 600,
+    ) -> Dict[str, Any]:
+        """Ra lệnh nạp model VieNeu lên GPU VRAM."""
+        url = f"{self.base_url}/v1/lifecycle/load"
+        payload = {
+            "model_name": model_name,
+            "voice_preload": voice_preload or ["ngoc_huyen", "truc_ly"],
+            "idle_timeout_seconds": idle_timeout_seconds,
+        }
+        resp = self.session.post(url, json=payload, timeout=60)
+        resp.raise_for_status()
+        return resp.json()
+
+    def unload_gpu(self, force: bool = False) -> Dict[str, Any]:
+        """Ra lệnh rút model khỏi GPU VRAM, đưa VRAM về 0 MB."""
+        url = f"{self.base_url}/v1/lifecycle/unload"
+        payload = {"force": force}
+        resp = self.session.post(url, json=payload, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_gpu_status(self) -> Dict[str, Any]:
+        """Truy vấn trạng thái GPU, VRAM allocated và bộ đếm Idle Watchdog."""
+        url = f"{self.base_url}/v1/lifecycle/status"
+        resp = self.session.get(url, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+
+    def send_heartbeat(self, idle_timeout_seconds: Optional[int] = None) -> Dict[str, Any]:
+        """Gia hạn phiên làm việc GPU, reset đếm ngược Idle Watchdog."""
+        url = f"{self.base_url}/v1/lifecycle/heartbeat"
+        payload = {"idle_timeout_seconds": idle_timeout_seconds}
+        resp = self.session.post(url, json=payload, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+
+    def gpu_session(
+        self,
+        model_name: str = "v3turbo",
+        voice_preload: Optional[List[str]] = None,
+        idle_timeout_seconds: int = 600,
+        auto_unload: bool = True,
+    ) -> GPUSession:
+        """Tạo Context Manager tự động quản lý nạp/xả GPU VRAM."""
+        return GPUSession(
+            client=self,
+            model_name=model_name,
+            voice_preload=voice_preload,
+            idle_timeout_seconds=idle_timeout_seconds,
+            auto_unload=auto_unload,
+        )
+
+    # --- INFERENCE METHODS ---
+
     def render_chapter_video(
         self,
         chapter_text: str,
@@ -40,21 +102,7 @@ class VieneuClient:
         resolution: str = "1920x1080",
         target_words: int = 100,
     ) -> Path:
-        """Gửi request render video chapter truyện + ảnh bìa thành MP4.
-
-        Args:
-            chapter_text: Nội dung văn bản chapter.
-            cover_image_path: Path file ảnh bìa (JPG/PNG).
-            output_file_path: Path lưu file video MP4 kết quả.
-            chapter_name: Tên chapter (tùy chọn).
-            voice: Giọng đọc (mặc định 'Ngọc Huyền').
-            speed: Tốc độ đọc (mặc định 1.2).
-            resolution: Độ phân giải video.
-            target_words: Số từ mỗi đoạn.
-
-        Returns:
-            Path file MP4 thành phẩm.
-        """
+        """Gửi request render video chapter truyện + ảnh bìa thành MP4."""
         if not cover_image_path.exists():
             raise FileNotFoundError(f"File ảnh bìa không tồn tại: {cover_image_path}")
 

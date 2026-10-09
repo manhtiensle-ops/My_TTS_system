@@ -12,12 +12,37 @@ Hệ thống TTS (Text-to-Speech) tiếng Việt chất lượng cao dựa trên
 
 ## Cài đặt & Sử dụng Client SDK / CLI (Mới)
 
-Sử dụng `vieneu-sdk` ở phía Client để tự động scan folder truyện, chọn số lượng chapter và render video MP4:
+Sử dụng `vieneu-sdk` ở phía Client để tự động scan folder truyện, chọn số lượng chapter, render video MP4 và tự động upload lên YouTube.
+
+### 1. Khởi tạo Môi trường & Cài đặt
+
+#### Cách 1: Sử dụng `uv` (Khuyên dùng — Cực nhanh)
+```bash
+# 1. Khởi tạo virtualenv bằng uv
+uv venv .venv
+
+# 2. Cài đặt SDK và dependencies phía Client bằng uv pip
+uv pip install -e ./sdk
+
+# 3. Kích hoạt môi trường
+source .venv/bin/activate
+```
+
+#### Cách 2: Sử dụng Python `venv` / `pip` truyền thống
+```bash
+# 1. Tạo môi trường ảo
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. Cài đặt SDK
+pip install -e ./sdk
+```
+
+---
+
+### 2. Thực thi Lệnh CLI `vieneu`
 
 ```bash
-# Cài đặt SDK ở chế độ editable
-pip install -e ./sdk
-
 # Chạy lệnh CLI chuyển đổi folder truyện thành MP4:
 vieneu --folder ./data/truyen_tien_hiep/chapters \
        --cover ./data/truyen_tien_hiep/cover.jpg \
@@ -33,6 +58,14 @@ vieneu --folder ./data/truyen_tien_hiep/chapters \
        --upload-youtube \
        --privacy unlisted \
        --playlist "PLxxxxxx"
+
+# Mẹo: Chạy trực tiếp bằng `uv run` mà không cần activate .venv:
+uv run vieneu --folder ./data/truyen_tien_hiep/chapters --cover ./data/truyen_tien_hiep/cover.jpg --output ./output_mp4
+
+# Điều khiển VRAM GPU từ xa qua CLI (Dynamic Lifecycle Control):
+vieneu --gpu-status   # Kiểm tra trạng thái GPU (FSM state, VRAM allocated, Watchdog timeout)
+vieneu --load-gpu     # Yêu cầu Server nạp model VieNeu lên VRAM GPU
+vieneu --unload-gpu   # Yêu cầu Server giải phóng 100% VRAM GPU về 0 MB
 ```
 
 ---

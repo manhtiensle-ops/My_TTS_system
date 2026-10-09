@@ -3,7 +3,6 @@ import threading
 from typing import Tuple, List, Dict, Optional
 
 import soundfile as sf
-import torch
 
 from .base import BaseTTSEngine
 
@@ -44,12 +43,14 @@ class VieNeuEngine(BaseTTSEngine):
             if self.is_loaded:
                 return
 
-            # Import vieneu động để tránh tải lúc import engine
-            from vieneu import Vieneu
+            try:
+                import torch
+                from vieneu import Vieneu
+            except ImportError as e:
+                raise RuntimeError(f"Chưa cài đặt vieneu/torch: {e}") from e
 
             self.tts = Vieneu()
 
-            # Chạy thử 1 câu ngắn để compile và capture CUDA Graph vào GPU
             if torch.cuda.is_available():
                 _ = self.tts.infer("Khởi động hệ thống.", voice="Ngọc Huyền")
                 torch.cuda.synchronize()
@@ -58,13 +59,17 @@ class VieNeuEngine(BaseTTSEngine):
 
     def get_status(self) -> Tuple[bool, str, float]:
         """Đọc dung lượng VRAM thực tế từ Driver NVIDIA."""
-        if not torch.cuda.is_available():
-            return False, "cpu", 0.0
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return False, "cpu", 0.0
 
-        device_name = torch.cuda.get_device_name(0)
-        vram_bytes = torch.cuda.memory_allocated(0)
-        vram_mb = round(vram_bytes / (1024 * 1024), 2)
-        return True, device_name, vram_mb
+            device_name = torch.cuda.get_device_name(0)
+            vram_bytes = torch.cuda.memory_allocated(0)
+            vram_mb = round(vram_bytes / (1024 * 1024), 2)
+            return True, device_name, vram_mb
+        except Exception:
+            return False, "cpu", 0.0
 
     def get_cuda_status(self) -> Tuple[bool, str, float]:
         """Alias tương thích ngược."""
@@ -89,31 +94,47 @@ class VieNeuEngine(BaseTTSEngine):
         if not self.is_loaded or self.tts is None:
             raise RuntimeError("Mô hình chưa được nạp vào bộ nhớ GPU.")
 
+        try:
+            import torch
+        except ImportError:
+            torch = None
+
         with self._lock:
             audio_array = self.tts.infer(
                 text=text,
                 voice=voice_name,
                 speed=speed,
             )
-            if torch.cuda.is_available():
+            if torch and torch.cuda.is_available():
                 torch.cuda.synchronize()
 
-        buffer = io.BytesIO()
-        if response_format == "wav":
-            sf.write(buffer, audio_array, self.sample_rate, format="WAV", subtype="PCM_16")
-        elif response_format == "mp3":
-            sf.write(buffer, audio_array, self.sample_rate, format="MP3")
-        else:
-            raise ValueError(f"Định dạng '{response_format}' không được hỗ trợ (chỉ nhận 'wav' hoặc 'mp3').")
+            buffer = io.BytesIO()
+            fmt = response_format.lower()
 
-        return buffer.getvalue()
+            if fmt == "wav":
+                sf.write(buffer, audio_array, self.sample_rate, format="WAV")
+            elif fmt in ("mp3", "mpeg"):
+                sf.write(buffer, audio_array, self.sample_rate, format="MP3")
+            else:
+                raise ValueError(f"Định dạng âm thanh không hỗ trợ: {response_format}")
+
+            buffer.seek(0)
+            return buffer.read()
 
     def unload_model(self) -> None:
-        """Dọn dẹp VRAM khi tắt server."""
+        """Rút mô hình khỏi bộ nhớ GPU VRAM và dọn dẹp CUDA Cache."""
         with self._lock:
-            if self.tts is not None:
-                del self.tts
-                self.tts = None
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            if not self.is_loaded:
+                return
+
+            self.tts = None
             self.is_loaded = False
+
+            try:
+                import gc
+                import torch
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass

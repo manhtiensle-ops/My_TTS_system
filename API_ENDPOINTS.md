@@ -350,3 +350,82 @@ Tự động chuyển đổi text chapter truyện và file ảnh bìa tĩnh th�
 - **Content-Type**: `video/mp4`
 - **Headers**: `Content-Disposition: attachment; filename="{safe_chapter_name}.mp4"`
 - **Body**: Binary Video Stream (MP4)
+
+---
+
+## 9. Dynamic VRAM On-Demand Lifecycle Control Endpoints (`/v1/lifecycle`)
+
+Đặc tả các API điều khiển vòng đời VRAM GPU phục vụ **Hermes Animator**:
+
+### 9.1 `POST /v1/lifecycle/load`
+Nạp mô hình VieNeu-TTS vào VRAM GPU và kích hoạt CUDA Graph warm-up.
+
+- **Request Body (JSON)**:
+  ```json
+  {
+    "model_name": "v3turbo",
+    "voice_preload": ["ngoc_huyen", "truc_ly"],
+    "idle_timeout_seconds": 600
+  }
+  ```
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "status": "ok",
+    "state": "READY",
+    "worker_pid": 12345,
+    "idle_timeout_seconds": 600
+  }
+  ```
+
+### 9.2 `POST /v1/lifecycle/unload`
+Rút mô hình khỏi VRAM GPU ngay lập tức, thu hồi 100% VRAM về 0 MB.
+
+- **Request Body (JSON)**:
+  ```json
+  {
+    "force": false
+  }
+  ```
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "status": "released",
+    "state": "SLEEP",
+    "vram_allocated_mb": 0.0
+  }
+  ```
+
+### 9.3 `GET /v1/lifecycle/status`
+Truy vấn trạng thái máy FSM, dung lượng VRAM thực tế và thời gian Idle Watchdog còn lại.
+
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "state": "READY",
+    "vram_allocated_mb": 2450.5,
+    "worker_pid": 12345,
+    "idle_seconds_remaining": 482.0,
+    "model_name": "v3turbo",
+    "loaded_voices": ["ngoc_huyen", "truc_ly"]
+  }
+  ```
+
+### 9.4 `POST /v1/lifecycle/heartbeat`
+Gia hạn phiên làm việc GPU, reset bộ đếm đếm ngược Idle Watchdog.
+
+- **Request Body (JSON)**:
+  ```json
+  {
+    "idle_timeout_seconds": 600
+  }
+  ```
+- **Response (HTTP 200)**:
+  ```json
+  {
+    "status": "heartbeat_acknowledged",
+    "state": "READY",
+    "idle_seconds_remaining": 600.0
+  }
+  ```
+

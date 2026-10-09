@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import Response
 
 from src.api.dependencies import get_novel_video_service
+from src.lifecycle.states import StateTransitionError
 from src.services.novel_video_service import NovelVideoService
 
 router = APIRouter(prefix="/v1/video", tags=["Novel Video Pipeline"])
@@ -55,6 +56,8 @@ async def render_novel_video(
             media_type=result.media_type,
             headers=headers,
         )
+    except StateTransitionError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:

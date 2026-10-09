@@ -4,7 +4,7 @@ processor.py — Batch Processor quản lý quét folder, lọc số lượng, c
 
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 from tqdm import tqdm
 
 from vieneu_sdk.client import VieneuClient
@@ -67,7 +67,7 @@ class NovelBatchProcessor:
         novel_title: str = "Tiểu Thuyết",
         youtube_uploader: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Chạy pipeline render video hàng loạt cho danh sách chapter (kèm YouTube uploader tùy chọn)."""
+        """Chạy pipeline render video hàng loạt cho danh sách chapter."""
         chapters = self.scan_and_filter(
             folder_path=folder_path,
             pattern=pattern,
@@ -101,67 +101,68 @@ class NovelBatchProcessor:
         failed_count = 0
         uploaded_count = 0
 
-        pbar = tqdm(chapters, desc="🎬 Render Novel Videos", unit="chap")
+        with self.client.gpu_session(voice_preload=[voice]):
+            pbar = tqdm(chapters, desc="🎬 Render Novel Videos", unit="chap")
 
-        for chap_file in pbar:
-            chap_name = chap_file.stem
-            out_mp4 = output_dir / f"{chap_name}.mp4"
+            for chap_file in pbar:
+                chap_name = chap_file.stem
+                out_mp4 = output_dir / f"{chap_name}.mp4"
 
-            pbar.set_postfix({"chapter": chap_name})
+                pbar.set_postfix({"chapter": chap_name})
 
-            if resume and (chap_name in completed_set or out_mp4.exists()):
-                skipped_count += 1
-                continue
+                if resume and (chap_name in completed_set or out_mp4.exists()):
+                    skipped_count += 1
+                    continue
 
-            try:
-                text_content = chap_file.read_text(encoding="utf-8")
-                self.client.render_chapter_video(
-                    chapter_text=text_content,
-                    cover_image_path=cover_path,
-                    output_file_path=out_mp4,
-                    chapter_name=chap_name,
-                    voice=voice,
-                    speed=speed,
-                )
-
-                yt_result_info = {}
-                if auto_upload_youtube and youtube_uploader:
-                    chap_num = self.sorter.extract_chapter_number(chap_file.name)
-                    from vieneu_sdk.youtube.metadata import NovelMetadataBuilder
-
-                    meta_builder = NovelMetadataBuilder(novel_title=novel_title)
-                    metadata = meta_builder.build_for_chapter(
+                try:
+                    text_content = chap_file.read_text(encoding="utf-8")
+                    self.client.render_chapter_video(
+                        chapter_text=text_content,
+                        cover_image_path=cover_path,
+                        output_file_path=out_mp4,
                         chapter_name=chap_name,
-                        chapter_number=chap_num,
-                        privacy=youtube_privacy,
-                        playlist_id=youtube_playlist_id,
+                        voice=voice,
+                        speed=speed,
                     )
-                    res = youtube_uploader.upload_video(
-                        video_path=out_mp4,
-                        metadata=metadata,
-                        thumbnail_path=cover_path,
-                    )
-                    if res.status == "uploaded":
-                        uploaded_count += 1
-                        yt_result_info = {
-                            "youtube_id": res.video_id,
-                            "youtube_url": res.video_url,
-                        }
 
-                completed_set.add(chap_name)
-                checkpoint_data[chap_name] = {
-                    "rendered_mp4": str(out_mp4),
-                    "status": "completed",
-                    **yt_result_info,
-                }
-                checkpoint_file.write_text(
-                    json.dumps(checkpoint_data, ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
-                processed_count += 1
-            except Exception as e:
-                print(f"\n❌ Lỗi khi render chapter {chap_name}: {e}")
-                failed_count += 1
+                    yt_result_info = {}
+                    if auto_upload_youtube and youtube_uploader:
+                        chap_num = self.sorter.extract_chapter_number(chap_file.name)
+                        from vieneu_sdk.youtube.metadata import NovelMetadataBuilder
+
+                        meta_builder = NovelMetadataBuilder(novel_title=novel_title)
+                        metadata = meta_builder.build_for_chapter(
+                            chapter_name=chap_name,
+                            chapter_number=chap_num,
+                            privacy=youtube_privacy,
+                            playlist_id=youtube_playlist_id,
+                        )
+                        res = youtube_uploader.upload_video(
+                            video_path=out_mp4,
+                            metadata=metadata,
+                            thumbnail_path=cover_path,
+                        )
+                        if res.status == "uploaded":
+                            uploaded_count += 1
+                            yt_result_info = {
+                                "youtube_id": res.video_id,
+                                "youtube_url": res.video_url,
+                            }
+
+                    completed_set.add(chap_name)
+                    checkpoint_data[chap_name] = {
+                        "rendered_mp4": str(out_mp4),
+                        "status": "completed",
+                        **yt_result_info,
+                    }
+                    checkpoint_file.write_text(
+                        json.dumps(checkpoint_data, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    processed_count += 1
+                except Exception as e:
+                    print(f"\n❌ Lỗi khi render chapter {chap_name}: {e}")
+                    failed_count += 1
 
         summary = {
             "total_chapters": len(chapters),

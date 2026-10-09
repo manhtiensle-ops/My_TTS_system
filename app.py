@@ -6,20 +6,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from src.api.dependencies import get_engine
 from src.api.router import api_router
 from src.config import settings
+from src.lifecycle.supervisor import get_supervisor
 
 
 class TTSApplication:
-    """Lớp bao đóng ứng dụng FastAPI với quản lý vòng đời (Lifespan)."""
+    """Lớp bao đóng ứng dụng FastAPI với quản lý vòng đời GPU On-Demand (Zero-VRAM Baseline)."""
 
     def __init__(self):
-        self.engine = get_engine()
+        self.supervisor = get_supervisor()
         self.app = FastAPI(
             title="VieNeu-TTS API Server",
-            description="Vietnamese TTS Server — Video Shorts (Trúc Ly 1.1) & Novel Reader (Ngọc Huyền 1.2)",
-            version="1.1.0",
+            description="Vietnamese TTS Server — On-Demand VRAM Lifecycle Controller (Trúc Ly 1.1 & Ngọc Huyền 1.2)",
+            version="1.2.0",
             lifespan=self.lifespan_handler,
         )
         self._configure_middlewares()
@@ -39,12 +39,10 @@ class TTSApplication:
 
     @asynccontextmanager
     async def lifespan_handler(self, app: FastAPI) -> AsyncGenerator[None, None]:
-        print("[Startup] Bắt đầu nạp TTS Engine vào GPU VRAM...")
-        await asyncio.to_thread(self.engine.load_model)
-        print("[Startup] Mô hình đã sẵn sàng phục vụ.")
+        print("[Startup] Lightweight Control Daemon ready (Zero-VRAM baseline: SLEEP).")
         yield
-        print("[Shutdown] Đang dọn dẹp và giải phóng tài nguyên GPU...")
-        await asyncio.to_thread(self.engine.unload_model)
+        print("[Shutdown] Thu hồi tài nguyên và giải phóng GPU Worker process...")
+        await self.supervisor.unload_model(force=True)
         print("[Shutdown] Hoàn tất tắt máy chủ.")
 
 
