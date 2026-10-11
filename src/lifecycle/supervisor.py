@@ -89,6 +89,9 @@ class WorkerSupervisor:
                 ",".join(self.loaded_voices),
             ]
 
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.getcwd() + (f":{env['PYTHONPATH']}" if "PYTHONPATH" in env else "")
+
             try:
                 # Process group riêng để kill sạch khi SIGTERM
                 kwargs = {}
@@ -99,6 +102,8 @@ class WorkerSupervisor:
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    cwd=os.getcwd(),
+                    env=env,
                     **kwargs
                 )
             except Exception as e:
@@ -108,9 +113,12 @@ class WorkerSupervisor:
             # Chờ worker tạo socket và hoàn tất nạp GPU (handshake)
             is_ready = await self._wait_for_worker_socket(timeout=60.0)
             if not is_ready:
+                stderr_msg = ""
+                if self.worker_process and self.worker_process.stderr:
+                    stderr_msg = self.worker_process.stderr.read().decode("utf-8", errors="replace")
                 await self._force_kill_process()
                 self.fsm.transition_to(LifecycleState.ERROR)
-                raise RuntimeError("Worker process failed to become ready within timeout.")
+                raise RuntimeError(f"Worker process failed to become ready: {stderr_msg or 'Timeout'}")
 
             self.fsm.transition_to(LifecycleState.READY)
             timeout = idle_timeout_seconds or self.default_timeout
